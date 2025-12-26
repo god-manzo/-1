@@ -183,8 +183,19 @@ export function useGameState() {
         totalTasksCompleted: prev.profile.totalTasksCompleted + 1
       }, task.xpValue);
 
+      // Create a history log for the task completion
+      const taskLog: VictoryLog = {
+        id: `task-${Date.now()}`,
+        title: task.title,
+        description: 'Квест выполнен',
+        stat: task.stat,
+        xpGained: task.xpValue,
+        timestamp: Date.now()
+      };
+
       return {
         ...prev,
+        victoryHistory: [taskLog, ...prev.victoryHistory],
         completedToday: { ...prev.completedToday, [taskId]: true },
         profile: updatedProfile
       };

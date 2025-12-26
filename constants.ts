@@ -40,13 +40,9 @@ export const STAT_CONFIG: Record<StatKey, { label: string, color: string, icon: 
   },
 };
 
-export const AVATARS = [
-  "🧑‍🚀", "🧙‍♂️", "🥷", "🧛‍♀️", "🧟", "🧚‍♀️", "🧞‍♂️", "👮", "🕵️‍♀️", "👩‍💻", "🤖", "👽", "🦁", "🐺", "🐲"
-];
-
 export const INITIAL_PROFILE = {
-  name: "Новичок",
-  avatar: "🧑‍🚀",
+  name: "Игрок",
+  avatar: "🧑‍🚀", // Fallback text avatar if no image
   level: 1,
   currentXp: 0,
   xpToNextLevel: 500,

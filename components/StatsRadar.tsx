@@ -15,12 +15,14 @@ interface StatsRadarProps {
 }
 
 export function StatsRadar({ stats }: StatsRadarProps) {
+  if (!stats) return null;
+
   const data = Object.keys(stats).map((key) => {
     const k = key as StatKey;
     return {
       subject: STAT_CONFIG[k].label,
       A: stats[k],
-      fullMark: 100, // You might want this to scale with level
+      fullMark: 100, 
     };
   });
 
@@ -31,20 +33,22 @@ export function StatsRadar({ stats }: StatsRadarProps) {
   return (
     <div className="w-full h-full">
       <ResponsiveContainer width="100%" height="100%">
-        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
-          <PolarGrid stroke="#334155" />
+        <RadarChart cx="50%" cy="50%" outerRadius="65%" data={data} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
+          {/* Blue grid lines for system look */}
+          <PolarGrid stroke="#1e3a8a" strokeDasharray="3 3" />
           <PolarAngleAxis 
             dataKey="subject" 
-            tick={{ fill: '#94a3b8', fontSize: 10, fontFamily: 'monospace' }} 
+            tick={{ fill: '#60a5fa', fontSize: 11, fontFamily: 'monospace', fontWeight: 'bold' }} 
           />
           <PolarRadiusAxis angle={30} domain={[0, domainMax]} tick={false} axisLine={false} />
           <Radar
             name="Stats"
             dataKey="A"
-            stroke="#8b5cf6"
+            stroke="#3b82f6"
             strokeWidth={2}
-            fill="#8b5cf6"
-            fillOpacity={0.3}
+            fill="#3b82f6"
+            fillOpacity={0.4}
+            isAnimationActive={true}
           />
         </RadarChart>
       </ResponsiveContainer>

@@ -7,9 +7,9 @@ export enum StatKey {
 }
 
 export enum TabView {
-  DASHBOARD = 'dashboard',
+  PROFILE = 'profile',
   QUESTS = 'quests',
-  PROFILE = 'profile'
+  DASHBOARD = 'dashboard'
 }
 
 export interface Task {
