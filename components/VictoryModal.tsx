@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { StatKey } from '../types';
 import { STAT_CONFIG } from '../constants';
@@ -36,7 +37,7 @@ export function VictoryModal({ isOpen, onClose, onRecord }: VictoryModalProps) {
         <div className="bg-slate-900/50 p-4 border-b border-slate-800 flex justify-between items-center">
           <h3 className="font-bold text-secondary flex items-center gap-2">
             <Trophy className="text-secondary" size={20} />
-            Записать Победу
+            Записать Достижение
           </h3>
           <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
             <X size={20} />
@@ -47,34 +48,34 @@ export function VictoryModal({ isOpen, onClose, onRecord }: VictoryModalProps) {
           <div className="bg-secondary/10 border border-secondary/20 rounded-lg p-3 text-sm text-secondary/80 flex gap-2">
             <Sparkles size={16} className="flex-shrink-0 mt-0.5" />
             <div>
-              Победа дает мгновенный опыт и восстанавливает здоровье!
+              Внеплановые достижения приносят опыт и восстанавливают ОЗ!
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-mono text-slate-400 uppercase mb-1">Что случилось?</label>
+            <label className="block text-xs font-mono text-slate-400 uppercase mb-1">Описание достижения</label>
             <input 
               type="text" 
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Например: Помог коллеге с отчетом"
+              placeholder="Пример: Помог коллеге с отчетом"
               className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-600 focus:outline-none focus:border-secondary transition-colors"
               autoFocus
             />
           </div>
 
           <div>
-             <label className="block text-xs font-mono text-slate-400 uppercase mb-1">Подробности (опционально)</label>
+             <label className="block text-xs font-mono text-slate-400 uppercase mb-1">Детали (опционально)</label>
              <textarea 
                value={description}
                onChange={(e) => setDescription(e.target.value)}
-               placeholder="Как это было?"
+               placeholder="Как это повлияло на ситуацию?"
                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-600 focus:outline-none focus:border-secondary transition-colors h-20 resize-none"
              />
           </div>
 
           <div>
-            <label className="block text-xs font-mono text-slate-400 uppercase mb-1">Сфера жизни</label>
+            <label className="block text-xs font-mono text-slate-400 uppercase mb-1">Затронутый параметр</label>
             <div className="relative">
                <select 
                  value={stat}

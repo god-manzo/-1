@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { StatKey } from '../types';
 import { STAT_CONFIG } from '../constants';
@@ -35,7 +36,7 @@ export function AddTaskModal({ isOpen, onClose, onAdd }: AddTaskModalProps) {
         <div className="bg-slate-900/50 p-4 border-b border-slate-800 flex justify-between items-center">
           <h3 className="font-bold text-white flex items-center gap-2">
             <Swords className="text-accent" size={20} />
-            Новый Квест
+            Новая Директива
           </h3>
           <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
             <X size={20} />
@@ -44,19 +45,19 @@ export function AddTaskModal({ isOpen, onClose, onAdd }: AddTaskModalProps) {
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div>
-            <label className="block text-xs font-mono text-slate-400 uppercase mb-1">Название цели</label>
+            <label className="block text-xs font-mono text-slate-400 uppercase mb-1">Формулировка</label>
             <input 
               type="text" 
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Например: Прочитать главу книги"
+              placeholder="Пример: Прочитать главу тех. документации"
               className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-600 focus:outline-none focus:border-primary transition-colors"
               autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-xs font-mono text-slate-400 uppercase mb-1">Категория</label>
+            <label className="block text-xs font-mono text-slate-400 uppercase mb-1">Параметр</label>
             <div className="relative">
                <select 
                  value={stat}
@@ -86,7 +87,7 @@ export function AddTaskModal({ isOpen, onClose, onAdd }: AddTaskModalProps) {
                   }`}
                 >
                   <div className="text-xs uppercase mb-0.5">
-                    {val === 20 ? 'Легко' : val === 50 ? 'Норм' : 'Сложно'}
+                    {val === 20 ? 'Низкая' : val === 50 ? 'Средняя' : 'Высокая'}
                   </div>
                   <div className="font-bold">{val} XP</div>
                 </button>
@@ -99,7 +100,7 @@ export function AddTaskModal({ isOpen, onClose, onAdd }: AddTaskModalProps) {
               type="submit" 
               className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 text-white font-bold py-3 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
             >
-              <Check size={18} /> Создать
+              <Check size={18} /> Утвердить
             </button>
           </div>
         </form>

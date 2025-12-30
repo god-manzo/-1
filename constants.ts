@@ -1,3 +1,4 @@
+
 import { StatKey } from './types';
 import { 
   Dumbbell, 
@@ -12,42 +13,40 @@ export const STAT_CONFIG: Record<StatKey, { label: string, color: string, icon: 
     label: 'Сила', 
     color: '#ef4444', // Red 500
     icon: Dumbbell,
-    description: 'Спорт, выносливость, здоровье'
+    description: 'Физические нагрузки, выносливость и общее состояние.'
   },
   [StatKey.INTELLECT]: { 
     label: 'Интеллект', 
     color: '#3b82f6', // Blue 500
     icon: Brain,
-    description: 'Обучение, работа, чтение'
+    description: 'Обучение, анализ данных, решение сложных задач.'
   },
   [StatKey.AGILITY]: { 
     label: 'Ловкость', 
     color: '#10b981', // Emerald 500
     icon: Zap,
-    description: 'Скорость решений, адаптация'
+    description: 'Скорость реакции, адаптивность, бытовые задачи.'
   },
   [StatKey.DISCIPLINE]: { 
     label: 'Дисциплина', 
     color: '#f59e0b', // Amber 500
     icon: Target,
-    description: 'Рутина, привычки, режим'
+    description: 'Следование рутине, формирование привычек, самоконтроль.'
   },
   [StatKey.CHARISMA]: { 
     label: 'Харизма', 
     color: '#ec4899', // Pink 500
     icon: Sparkles,
-    description: 'Общение, помощь, выступления'
+    description: 'Социальные взаимодействия, эмпатия, лидерство.'
   },
 };
 
 export const INITIAL_PROFILE = {
-  name: "Игрок",
-  avatar: "🧑‍🚀", // Fallback text avatar if no image
+  name: "Оперативник",
+  avatar: "", // Empty string will trigger fallback icon
   level: 1,
   currentXp: 0,
   xpToNextLevel: 500,
-  hp: 1000,
-  maxHp: 1000,
   stats: {
     [StatKey.STRENGTH]: 1,
     [StatKey.INTELLECT]: 1,

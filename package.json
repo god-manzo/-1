@@ -1,5 +1,5 @@
 {
-  "name": "дневник-побед-rpg",
+  "name": "система-пробуждения:-rpg-дневник",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/genai": "latest",
     "recharts": "^3.6.0",
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",

@@ -1,35 +1,46 @@
+
+
 import { useState, useEffect, useCallback } from 'react';
-import { GameState, Task, StatKey, LogMessage, Profile, VictoryLog } from '../types';
+import { GameState, Task, StatKey, LogMessage, Profile, VictoryLog, Priority } from '../types';
 import { INITIAL_PROFILE, STORAGE_KEY } from '../constants';
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
-const DAILY_QUESTS_TEMPLATES = [
-  { title: "Записать 3 небольшие победы", stat: StatKey.DISCIPLINE, xp: 100, hp: 150 },
-  { title: "Час фокусной работы", stat: StatKey.INTELLECT, xp: 150, hp: 200 },
-  { title: "Физическая активность", stat: StatKey.STRENGTH, xp: 120, hp: 180 },
+const DEFAULT_HABITS = [
+  { title: "Ежедневная тренировка (Сила)", stat: StatKey.STRENGTH, xp: 100 },
+  { title: "Чтение системного руководства (Интеллект)", stat: StatKey.INTELLECT, xp: 120 },
 ];
 
 export function useGameState() {
+  // FIX: Renamed the state variable from `useState` to `gameState` to avoid conflict with the hook and fix reference errors.
   const [gameState, setGameState] = useState<GameState>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Migration logic for v2
+        // Migration: Ensure tasks have new fields
+        const migratedTasks = (parsed.tasks || []).map((t: any) => ({
+            ...t,
+            priority: t.priority || Priority.E_RANK,
+            dueDate: t.dueDate || (t.id.startsWith('daily-') ? todayKey() : null),
+            isHabit: t.isHabit !== undefined ? t.isHabit : t.id.startsWith('daily-')
+        }));
+
+        const migratedProfile = { ...INITIAL_PROFILE, ...parsed.profile };
+        delete migratedProfile.hp;
+        delete migratedProfile.maxHp;
+
+
         return { 
           ...parsed, 
-          profile: {
-            ...INITIAL_PROFILE,
-            ...parsed.profile,
-            hp: parsed.profile.hp || 1000,
-            maxHp: parsed.profile.maxHp || 1000
-          },
+          tasks: migratedTasks,
+          profile: migratedProfile,
           victoryHistory: parsed.victoryHistory || [],
-          lastLoginDate: parsed.lastLoginDate || todayKey() 
+          lastLoginDate: parsed.lastLoginDate || todayKey(),
+          dayNames: parsed.dayNames || {}
         };
       } catch (e) {
-        console.error("Save file corrupted", e);
+        console.error("Файл сохранения поврежден", e);
       }
     }
     return {
@@ -38,6 +49,7 @@ export function useGameState() {
       victoryHistory: [],
       completedToday: {},
       lastLoginDate: todayKey(),
+      dayNames: {},
     };
   });
 
@@ -55,67 +67,58 @@ export function useGameState() {
     }, 5000);
   }, []);
 
-  // Система смены дня и регенерации квестов
   const resetDay = useCallback(() => {
     const today = todayKey();
     if (gameState.lastLoginDate !== today) {
       
       setGameState(prev => {
-        // Усталость за новый день
-        const newHp = Math.max(0, prev.profile.hp - 250); 
+        // Regenerate Habits if missing
+        let currentTasks = [...prev.tasks];
+        const habits = currentTasks.filter(t => t.isHabit);
         
-        // Генерация дейликов, если их нет
-        let newTasks = [...prev.tasks];
-        if (newTasks.filter(t => !prev.completedToday[t.id]).length < 3) {
-           const defaults = DAILY_QUESTS_TEMPLATES.map((tpl, idx) => ({
-             id: `daily-${today}-${idx}`,
-             title: tpl.title,
-             stat: tpl.stat,
-             xpValue: tpl.xp,
-             hpReward: tpl.hp,
-             streak: 0,
-             createdAt: new Date().toISOString()
-           }));
-           // Оставляем пользовательские, добавляем дефолтные
-           newTasks = [...newTasks.filter(t => !t.id.startsWith('daily-')), ...defaults];
+        if (habits.length === 0) {
+            const newHabits = DEFAULT_HABITS.map((h, i) => ({
+                id: `habit-${Date.now()}-${i}`,
+                title: h.title,
+                stat: h.stat,
+                xpValue: h.xp,
+                streak: 0,
+                createdAt: new Date().toISOString(),
+                priority: Priority.A_RANK,
+                dueDate: null, // Habits recur, dueDate logic handled by view usually, or set to today
+                isHabit: true
+            }));
+            currentTasks = [...currentTasks, ...newHabits];
         }
 
         return {
           ...prev,
-          completedToday: {},
-          tasks: newTasks,
+          completedToday: {}, // Reset daily completion
+          tasks: currentTasks,
           lastLoginDate: today,
-          profile: {
-            ...prev.profile,
-            hp: newHp
-          }
         };
       });
       
-      addLog("Новый день! HP снижено от усталости. Выполни квесты для восстановления.", 'warning');
+      addLog("Дата системы обновлена. Статус синхронизирован.", 'warning');
     }
   }, [gameState.lastLoginDate, addLog]);
 
   const checkLevelUp = (currentProfile: Profile, addedXp: number): Profile => {
-    let { level, currentXp, xpToNextLevel, maxHp, hp } = currentProfile;
+    let { level, currentXp, xpToNextLevel } = currentProfile;
     let newXp = currentXp + addedXp;
     let newLevel = level;
     let newXpToNext = xpToNextLevel;
-    let newMaxHp = maxHp;
-    let newHp = hp;
     let leveledUp = false;
 
     while (newXp >= newXpToNext) {
       newXp -= newXpToNext;
       newLevel++;
       newXpToNext = Math.floor(newXpToNext * 1.3);
-      newMaxHp += 100; // +100 Max HP per level
-      newHp = newMaxHp; // Full heal on level up
       leveledUp = true;
     }
 
     if (leveledUp) {
-      addLog(`ПОВЫШЕНИЕ УРОВНЯ! Теперь ты уровень ${newLevel}`, 'level-up');
+      addLog(`СИСТЕМНОЕ УВЕДОМЛЕНИЕ: НОВЫЙ УРОВЕНЬ! РАНГ ПОВЫШЕН ДО ${newLevel}`, 'level-up');
     }
 
     return {
@@ -123,102 +126,87 @@ export function useGameState() {
       level: newLevel,
       currentXp: newXp,
       xpToNextLevel: newXpToNext,
-      maxHp: newMaxHp,
-      hp: newHp
     };
   };
 
-  // Запись свободной победы
   const recordVictory = (title: string, description: string, stat: StatKey) => {
     const xpReward = 50;
-    const hpReward = 50;
 
     setGameState(prev => {
       const newStats = { ...prev.profile.stats };
       newStats[stat] = (newStats[stat] || 0) + 0.1;
 
-      // Heal logic
-      const healedHp = Math.min(prev.profile.maxHp, prev.profile.hp + hpReward);
-
-      const updatedProfile = checkLevelUp({
-        ...prev.profile,
-        hp: healedHp,
-        stats: newStats,
-      }, xpReward);
-
-      const newLog: VictoryLog = {
-        id: Date.now().toString(),
-        title,
-        description,
-        stat,
-        xpGained: xpReward,
-        timestamp: Date.now()
-      };
+      const updatedProfile = checkLevelUp({ ...prev.profile, stats: newStats }, xpReward);
 
       return {
         ...prev,
-        victoryHistory: [newLog, ...prev.victoryHistory],
+        victoryHistory: [{
+            id: Date.now().toString(), title, description, stat, xpGained: xpReward, timestamp: Date.now()
+        }, ...prev.victoryHistory],
         profile: updatedProfile
       };
     });
-    addLog(`Победа записана! +${xpReward} XP, +${hpReward} HP`, 'success');
+    addLog(`Достижение записано. +${xpReward} XP`, 'success');
   };
 
   const completeTask = (taskId: string) => {
-    if (gameState.completedToday[taskId]) return;
-
     const task = gameState.tasks.find(t => t.id === taskId);
     if (!task) return;
+    const isHabit = task.isHabit;
+    if (isHabit && gameState.completedToday[taskId]) return; 
 
     setGameState(prev => {
       const newStats = { ...prev.profile.stats };
       newStats[task.stat] = (newStats[task.stat] || 0) + (task.xpValue * 0.005);
-
-      const healedHp = Math.min(prev.profile.maxHp, prev.profile.hp + task.hpReward);
-
+      
       const updatedProfile = checkLevelUp({
         ...prev.profile,
-        hp: healedHp,
         stats: newStats,
         totalTasksCompleted: prev.profile.totalTasksCompleted + 1
       }, task.xpValue);
 
-      // Create a history log for the task completion
       const taskLog: VictoryLog = {
         id: `task-${Date.now()}`,
         title: task.title,
-        description: 'Квест выполнен',
+        description: isHabit ? 'Ежедневный протокол выполнен' : 'Директива выполнена',
         stat: task.stat,
         xpGained: task.xpValue,
         timestamp: Date.now()
       };
 
+      const updatedTasks = isHabit 
+        ? prev.tasks 
+        : prev.tasks.filter(t => t.id !== taskId);
+
       return {
         ...prev,
+        tasks: updatedTasks,
         victoryHistory: [taskLog, ...prev.victoryHistory],
         completedToday: { ...prev.completedToday, [taskId]: true },
         profile: updatedProfile
       };
     });
 
-    addLog(`Квест выполнен: +${task.xpValue} XP | HP восстановлено`, 'success');
+    addLog(`Директива выполнена: ${task.title}`, 'success');
   };
 
-  const addTask = (title: string, stat: StatKey, xpValue: number) => {
+  const addTask = (title: string, stat: StatKey, xpValue: number, priority: Priority = Priority.E_RANK, dueDate: string | null = null, isHabit: boolean = false) => {
     const newTask: Task = {
       id: Date.now().toString(),
       title,
       stat,
       xpValue,
-      hpReward: Math.floor(xpValue * 1.5),
       streak: 0,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      priority,
+      dueDate,
+      isHabit
     };
     setGameState(prev => ({
       ...prev,
       tasks: [...prev.tasks, newTask]
     }));
-    addLog("Новая цель добавлена в журнал.", 'info');
+    addLog("Получена новая директива.", 'info');
   };
 
   const deleteTask = (taskId: string) => {
@@ -230,11 +218,25 @@ export function useGameState() {
   };
 
   const updateProfile = (name: string, avatar: string) => {
-    setGameState(prev => ({
-      ...prev,
-      profile: { ...prev.profile, name, avatar }
-    }));
-    addLog("Профиль обновлен", 'info');
+    setGameState(prev => ({ ...prev, profile: { ...prev.profile, name, avatar } }));
+  };
+  
+  const setDayName = (date: string, name: string) => {
+    setGameState(prev => {
+      const newDayNames = { ...prev.dayNames };
+      if (name.trim()) {
+        newDayNames[date] = name;
+      } else {
+        delete newDayNames[date];
+      }
+      return { ...prev, dayNames: newDayNames };
+    });
+    
+    if (name.trim()) {
+      addLog(`Дню ${date} присвоено имя: ${name.trim()}`, 'info');
+    } else {
+      addLog(`Имя для дня ${date} удалено.`, 'info');
+    }
   };
 
   return {
@@ -245,6 +247,7 @@ export function useGameState() {
     deleteTask,
     resetDay,
     updateProfile,
-    recordVictory
+    recordVictory,
+    setDayName
   };
 }
