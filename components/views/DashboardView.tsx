@@ -1,13 +1,71 @@
 
-
 import React from 'react';
-import { ScrollText, Activity } from 'lucide-react';
-import { GameState, StatKey } from '../../types';
-import { STAT_CONFIG } from '../../constants';
+import { Activity, BarChart3, Clock, AlertTriangle } from 'lucide-react';
+import { GameState, SystemAnalysis, SystemReport, SeasonalReport } from '../../types';
 import { FocusTimer } from '../FocusTimer';
+import { StatKey } from '../../types';
 
-export function DashboardView({ gameState, onOpenVictoryModal, onRecordVictory }: {
+// New component to display AI analysis
+const SystemAnalysisDisplay = ({ analysis }: { analysis: SystemAnalysis }) => {
+    const { weeklyReport, monthlyReport, seasonalReport, dailyRecords } = analysis;
+    const hasEnoughData = Object.keys(dailyRecords).length > 1;
+
+    if (!hasEnoughData) {
+        return (
+            <div className="border-2 border-dashed border-slate-800 rounded-sm p-8 text-center font-mono">
+                <AlertTriangle className="mx-auto text-amber-500 mb-4" size={32}/>
+                <h4 className="text-amber-400 font-bold tracking-widest">НЕДОСТАТОЧНО ДАННЫХ</h4>
+                <p className="text-slate-500 text-xs mt-2">
+                    Системе требуется больше времени для сбора телеметрии. Продолжайте выполнять директивы.
+                </p>
+            </div>
+        )
+    }
+
+    const ReportCard = ({ report, title }: { report?: SystemReport | SeasonalReport, title: string }) => {
+        if (!report) return null;
+        const isSeasonal = 'archetype' in report;
+        
+        return (
+            <div className="bg-[#0f172a]/50 border border-slate-800 rounded-sm p-4">
+                <h4 className="text-sm font-bold text-blue-300 tracking-[0.2em] uppercase mb-3">{title}</h4>
+                <div className="font-mono text-xs space-y-2 text-slate-400">
+                    <div className="flex items-start gap-2">
+                        <span className="text-slate-600 w-20 shrink-0">Период:</span>
+                        <span className="text-slate-200">{report.period}</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                        <span className="text-slate-600 w-20 shrink-0">Факт:</span>
+                        <span className="text-slate-200">{report.fact}</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                        <span className="text-slate-600 w-20 shrink-0">Тренд:</span>
+                        <span className="text-slate-200">{report.trend}</span>
+                    </div>
+                    {isSeasonal && (
+                        <div className="flex items-start gap-2 pt-2 border-t border-slate-800 mt-2">
+                            <span className="text-slate-600 w-20 shrink-0">Архетип:</span>
+                            <span className="font-bold text-amber-400">{(report as SeasonalReport).archetype}</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-4">
+            <ReportCard report={seasonalReport} title="Сезонный анализ"/>
+            <ReportCard report={monthlyReport} title="Ежемесячный отчет"/>
+            <ReportCard report={weeklyReport} title="Еженедельный отчет"/>
+        </div>
+    );
+};
+
+
+export function DashboardView({ gameState, systemAnalysis, onOpenVictoryModal, onRecordVictory }: {
   gameState: GameState;
+  systemAnalysis: SystemAnalysis;
   onOpenVictoryModal: () => void;
   onRecordVictory: (title: string, desc: string, stat: StatKey) => void;
 }) {
@@ -30,47 +88,27 @@ export function DashboardView({ gameState, onOpenVictoryModal, onRecordVictory }
         <p className="text-slate-500 text-sm mt-1">Прямая трансляция данных и метрик производительности.</p>
       </div>
       
-      {/* FOCUS & ACTIONS */}
-      <div className="space-y-4">
+      {/* FOCUS TIMER & ACTIONS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <FocusTimer onComplete={handleFocusComplete} />
-        <button 
-          onClick={onOpenVictoryModal}
-          className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-blue-500 text-white font-bold py-3 px-4 rounded-sm transition-all text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg"
-        >
-          Записать Достижение
-        </button>
+        <div className="space-y-4">
+            <div className="bg-[#0a0f1c] border-2 border-slate-800 rounded-sm p-6 text-center h-full flex flex-col justify-center">
+                <BarChart3 size={32} className="mx-auto text-blue-500 mb-4" />
+                <h3 className="text-blue-300 font-bold tracking-widest mb-2">АНАЛИТИЧЕСКИЙ КОНТУР</h3>
+                <p className="text-slate-500 text-xs mb-4">Система наблюдает. Выводы будут представлены по мере накопления данных.</p>
+                <button 
+                  onClick={onOpenVictoryModal}
+                  className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-blue-500 text-white font-bold py-3 px-4 rounded-sm transition-all text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg"
+                >
+                  Записать Достижение
+                </button>
+            </div>
+        </div>
       </div>
 
-      {/* RECENT LOGS */}
-      <div className="bg-surface border border-slate-800 rounded-sm shadow-lg flex flex-col h-full overflow-hidden">
-        <div className="flex justify-between items-center p-4 border-b border-slate-800 bg-slate-900/50">
-          <h3 className="text-slate-400 text-sm tracking-[0.2em] flex items-center gap-2 font-bold">
-            <ScrollText size={16} /> ЖУРНАЛ АКТИВНОСТИ
-          </h3>
-        </div>
-        <div className="divide-y divide-slate-800/50 max-h-[300px] overflow-y-auto custom-scrollbar bg-[#0b0f1a]">
-          {gameState.victoryHistory.length === 0 ? (
-            <div className="text-center py-10 text-slate-600 text-sm">НЕТ ДАННЫХ.</div>
-          ) : (
-            gameState.victoryHistory.slice(0, 10).map((log) => {
-              const config = STAT_CONFIG[log.stat];
-              return (
-                <div key={log.id} className="p-3 hover:bg-slate-900/40 transition-colors flex gap-4 items-center group">
-                  <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-sm bg-slate-900 border border-slate-800">
-                    <config.icon size={16} style={{ color: config.color }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                     <span className="font-bold text-slate-300 text-sm truncate pr-2 group-hover:text-blue-300">{log.title}</span>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs font-bold text-secondary">+{log.xpGained} XP</div>
-                    <div className="text-[10px] text-slate-600">{new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+      {/* SYSTEM ANALYSIS REPORTS */}
+      <div>
+          <SystemAnalysisDisplay analysis={systemAnalysis} />
       </div>
     </div>
   );

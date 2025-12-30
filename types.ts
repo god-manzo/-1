@@ -68,6 +68,57 @@ export interface GameState {
 export interface LogMessage {
   id: string;
   text: string;
-  type: 'info' | 'success' | 'warning' | 'level-up' | 'danger';
+  type: 'info' | 'success' | 'warning' | 'level-up' | 'danger' | 'stat_up' | 'achievement' | 'advisor' | 'analysis';
   timestamp: number;
+}
+
+// Types for the persistence system
+export interface SaveSnapshot {
+    timestamp: number;
+    state: GameState;
+}
+
+export interface PersistedState {
+    version: number;
+    current: GameState;
+    history: SaveSnapshot[];
+}
+
+// --- Types for the AI Analysis System ---
+
+export interface DailyRecord {
+    date: string; // YYYY-MM-DD
+    completed: number;
+    created: number;
+    missed: number; // Due date passed, not completed
+}
+
+export interface SystemReport {
+    period: string; // e.g., "Неделя 24", "Месяц 6", "Сезон 2"
+    fact: string;
+    trend: string;
+    generatedAt: string;
+}
+
+export enum SeasonalArchetype {
+    STABLE_GROWTH = "Стабильное наращивание",
+    UNSTABLE_GROWTH = "Нестабильное наращивание",
+    STAGNATION = "Стагнация",
+    REGRESSION = "Регрессия",
+    RECOVERY = "Восстановление",
+    CRASH = "Срыв",
+    VOID = "Недостаточно данных"
+}
+
+export interface SeasonalReport extends SystemReport {
+    archetype: SeasonalArchetype;
+}
+
+export interface SystemAnalysis {
+    version: number;
+    dailyRecords: Record<string, DailyRecord>; // Key is YYYY-MM-DD
+    lastAnalysisDate: string;
+    weeklyReport?: SystemReport;
+    monthlyReport?: SystemReport;
+    seasonalReport?: SeasonalReport;
 }

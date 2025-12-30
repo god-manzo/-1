@@ -1,8 +1,9 @@
 
-
 import { useState, useEffect, useCallback } from 'react';
-import { GameState, Task, StatKey, LogMessage, Profile, VictoryLog, Priority } from '../types';
-import { INITIAL_PROFILE, STORAGE_KEY } from '../constants';
+import { GameState, Task, StatKey, LogMessage, Profile, VictoryLog, Priority, SaveSnapshot, PersistedState } from '../types';
+import { INITIAL_PROFILE, STAT_CONFIG } from '../constants';
+import { loadState, saveState, pushHistory } from './usePersistence';
+import { useSystemAnalysis } from './useSystemAnalysis';
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
@@ -11,68 +12,95 @@ const DEFAULT_HABITS = [
   { title: "Чтение системного руководства (Интеллект)", stat: StatKey.INTELLECT, xp: 120 },
 ];
 
-export function useGameState() {
-  // FIX: Renamed the state variable from `useState` to `gameState` to avoid conflict with the hook and fix reference errors.
-  const [gameState, setGameState] = useState<GameState>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Migration: Ensure tasks have new fields
-        const migratedTasks = (parsed.tasks || []).map((t: any) => ({
-            ...t,
-            priority: t.priority || Priority.E_RANK,
-            dueDate: t.dueDate || (t.id.startsWith('daily-') ? todayKey() : null),
-            isHabit: t.isHabit !== undefined ? t.isHabit : t.id.startsWith('daily-')
-        }));
+const initialGameState: GameState = {
+    profile: INITIAL_PROFILE,
+    tasks: [],
+    victoryHistory: [],
+    completedToday: {},
+    lastLoginDate: todayKey(),
+    dayNames: {},
+};
 
-        const migratedProfile = { ...INITIAL_PROFILE, ...parsed.profile };
-        delete migratedProfile.hp;
-        delete migratedProfile.maxHp;
-
-
-        return { 
-          ...parsed, 
-          tasks: migratedTasks,
-          profile: migratedProfile,
-          victoryHistory: parsed.victoryHistory || [],
-          lastLoginDate: parsed.lastLoginDate || todayKey(),
-          dayNames: parsed.dayNames || {}
-        };
-      } catch (e) {
-        console.error("Файл сохранения поврежден", e);
-      }
-    }
-    return {
-      profile: INITIAL_PROFILE,
-      tasks: [],
-      victoryHistory: [],
-      completedToday: {},
-      lastLoginDate: todayKey(),
-      dayNames: {},
-    };
+export function useGameState(onLevelUp: () => void) {
+  const [persistedState, setPersistedState] = useState<PersistedState>(() => {
+    const saved = loadState();
+    return saved || { version: 1, current: initialGameState, history: [] };
   });
 
+  const { current: gameState, history } = persistedState;
+  
   const [logs, setLogs] = useState<LogMessage[]>([]);
-
+  const { systemAnalysis, runAnalysis } = useSystemAnalysis(gameState);
+  
+  // Auto-save whenever the game state changes
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
-  }, [gameState]);
+    saveState(persistedState);
+  }, [persistedState]);
+
+  // Log new analysis reports
+  useEffect(() => {
+    const lastLog = logs[0];
+    if (systemAnalysis.weeklyReport && lastLog?.text !== systemAnalysis.weeklyReport.fact) {
+        addLog(systemAnalysis.weeklyReport.fact, 'analysis');
+    }
+    if (systemAnalysis.monthlyReport && lastLog?.text !== systemAnalysis.monthlyReport.fact) {
+        addLog(systemAnalysis.monthlyReport.fact, 'analysis');
+    }
+    if (systemAnalysis.seasonalReport && lastLog?.text !== systemAnalysis.seasonalReport.fact) {
+        addLog(`Сезон классифицирован: ${systemAnalysis.seasonalReport.archetype}`, 'analysis');
+    }
+  }, [systemAnalysis]);
+
+
+  // Wrapper for all state changes to manage history
+  const commit = useCallback((updater: (state: GameState) => GameState, logMessage?: { text: string; type: LogMessage['type'] }) => {
+    setPersistedState(prev => {
+      const newState = updater(prev.current);
+      return {
+        ...prev,
+        current: newState,
+        history: pushHistory(prev.history, prev.current),
+      };
+    });
+    if (logMessage) {
+        addLog(logMessage.text, logMessage.type);
+    }
+  }, []);
+
+  const undo = useCallback(() => {
+    if (history.length > 0) {
+      setPersistedState(prev => {
+        const lastSnapshot = prev.history[prev.history.length - 1];
+        return {
+          ...prev,
+          current: lastSnapshot.state,
+          history: prev.history.slice(0, -1),
+        };
+      });
+      addLog("Последнее действие отменено.", 'warning');
+    }
+  }, [history.length]);
+
 
   const addLog = useCallback((text: string, type: LogMessage['type'] = 'info') => {
-    const id = Date.now().toString() + Math.random().toString();
-    setLogs(prev => [{ id, text, type, timestamp: Date.now() }, ...prev].slice(0, 5));
+    setLogs(prev => {
+      // Prevent duplicate logs
+      if (prev.length > 0 && prev[0].text === text) return prev;
+      const id = Date.now().toString() + Math.random().toString();
+      const newLogs = [{ id, text, type, timestamp: Date.now() }, ...prev];
+      return newLogs.slice(0, 5);
+    });
     setTimeout(() => {
-      setLogs(prev => prev.filter(l => l.id !== id));
+      setLogs(prev => prev.slice(0, prev.length -1));
     }, 5000);
   }, []);
 
   const resetDay = useCallback(() => {
-    const today = todayKey();
-    if (gameState.lastLoginDate !== today) {
+    if (gameState.lastLoginDate !== todayKey()) {
+      // Run AI analysis before committing the daily reset
+      runAnalysis();
       
-      setGameState(prev => {
-        // Regenerate Habits if missing
+      commit(prev => {
         let currentTasks = [...prev.tasks];
         const habits = currentTasks.filter(t => t.isHabit);
         
@@ -85,7 +113,7 @@ export function useGameState() {
                 streak: 0,
                 createdAt: new Date().toISOString(),
                 priority: Priority.A_RANK,
-                dueDate: null, // Habits recur, dueDate logic handled by view usually, or set to today
+                dueDate: null,
                 isHabit: true
             }));
             currentTasks = [...currentTasks, ...newHabits];
@@ -93,15 +121,18 @@ export function useGameState() {
 
         return {
           ...prev,
-          completedToday: {}, // Reset daily completion
+          completedToday: {},
           tasks: currentTasks,
-          lastLoginDate: today,
+          lastLoginDate: todayKey(),
         };
-      });
-      
-      addLog("Дата системы обновлена. Статус синхронизирован.", 'warning');
+      }, { text: "Дата системы обновлена. Статус синхронизирован.", type: 'warning' });
     }
-  }, [gameState.lastLoginDate, addLog]);
+  }, [gameState.lastLoginDate, commit, runAnalysis]);
+
+  // Daily check on mount and focus
+  useEffect(() => {
+    resetDay();
+  }, [resetDay]);
 
   const checkLevelUp = (currentProfile: Profile, addedXp: number): Profile => {
     let { level, currentXp, xpToNextLevel } = currentProfile;
@@ -119,6 +150,7 @@ export function useGameState() {
 
     if (leveledUp) {
       addLog(`СИСТЕМНОЕ УВЕДОМЛЕНИЕ: НОВЫЙ УРОВЕНЬ! РАНГ ПОВЫШЕН ДО ${newLevel}`, 'level-up');
+      onLevelUp(); // Trigger UI effect
     }
 
     return {
@@ -129,10 +161,21 @@ export function useGameState() {
     };
   };
 
+  const analyzeAndAdvise = (state: GameState) => {
+      const recentCompleted = Object.keys(state.completedToday).length;
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const pendingToday = state.tasks.filter(t => (t.isHabit || (t.dueDate && t.dueDate <= todayStr)) && !state.completedToday[t.id]).length;
+
+      if (pendingToday > 5 && recentCompleted < 2) {
+          addLog("Перегрузка протоколов. Рассмотрите возможность снижения нагрузки для поддержания эффективности.", 'advisor');
+      } else if (pendingToday === 0 && recentCompleted > 3) {
+          addLog("Высокая производительность. Система рекомендует добавить новую директиву для дальнейшего развития.", 'advisor');
+      }
+  };
+
   const recordVictory = (title: string, description: string, stat: StatKey) => {
     const xpReward = 50;
-
-    setGameState(prev => {
+    commit(prev => {
       const newStats = { ...prev.profile.stats };
       newStats[stat] = (newStats[stat] || 0) + 0.1;
 
@@ -145,19 +188,19 @@ export function useGameState() {
         }, ...prev.victoryHistory],
         profile: updatedProfile
       };
-    });
-    addLog(`Достижение записано. +${xpReward} XP`, 'success');
+    }, { text: `Достижение: ${title}. +${xpReward} XP`, type: 'achievement' });
   };
 
   const completeTask = (taskId: string) => {
     const task = gameState.tasks.find(t => t.id === taskId);
     if (!task) return;
-    const isHabit = task.isHabit;
-    if (isHabit && gameState.completedToday[taskId]) return; 
+    if (task.isHabit && gameState.completedToday[taskId]) return; 
 
-    setGameState(prev => {
+    commit(prev => {
       const newStats = { ...prev.profile.stats };
-      newStats[task.stat] = (newStats[task.stat] || 0) + (task.xpValue * 0.005);
+      const statGain = task.xpValue * 0.005;
+      newStats[task.stat] = (newStats[task.stat] || 0) + statGain;
+      addLog(`ПАРАМЕТР ${STAT_CONFIG[task.stat].label.toUpperCase()} УЛУЧШЕН [+${statGain.toFixed(2)}]`, 'stat_up');
       
       const updatedProfile = checkLevelUp({
         ...prev.profile,
@@ -168,26 +211,29 @@ export function useGameState() {
       const taskLog: VictoryLog = {
         id: `task-${Date.now()}`,
         title: task.title,
-        description: isHabit ? 'Ежедневный протокол выполнен' : 'Директива выполнена',
+        description: task.isHabit ? 'Ежедневный протокол выполнен' : 'Директива выполнена',
         stat: task.stat,
         xpGained: task.xpValue,
         timestamp: Date.now()
       };
 
-      const updatedTasks = isHabit 
+      const updatedTasks = task.isHabit 
         ? prev.tasks 
         : prev.tasks.filter(t => t.id !== taskId);
-
-      return {
+        
+      const nextState = {
         ...prev,
         tasks: updatedTasks,
         victoryHistory: [taskLog, ...prev.victoryHistory],
         completedToday: { ...prev.completedToday, [taskId]: true },
         profile: updatedProfile
       };
-    });
+      
+      analyzeAndAdvise(nextState); // Local AI advisor
+      
+      return nextState;
 
-    addLog(`Директива выполнена: ${task.title}`, 'success');
+    }, { text: `Директива выполнена: ${task.title}`, type: 'success' });
   };
 
   const addTask = (title: string, stat: StatKey, xpValue: number, priority: Priority = Priority.E_RANK, dueDate: string | null = null, isHabit: boolean = false) => {
@@ -202,15 +248,14 @@ export function useGameState() {
       dueDate,
       isHabit
     };
-    setGameState(prev => ({
+    commit(prev => ({
       ...prev,
       tasks: [...prev.tasks, newTask]
-    }));
-    addLog("Получена новая директива.", 'info');
+    }), { text: "Получена новая директива.", type: 'info' });
   };
 
   const deleteTask = (taskId: string) => {
-    setGameState(prev => ({
+    commit(prev => ({
       ...prev,
       tasks: prev.tasks.filter(t => t.id !== taskId),
       completedToday: { ...prev.completedToday, [taskId]: false }
@@ -218,11 +263,11 @@ export function useGameState() {
   };
 
   const updateProfile = (name: string, avatar: string) => {
-    setGameState(prev => ({ ...prev, profile: { ...prev.profile, name, avatar } }));
+    commit(prev => ({ ...prev, profile: { ...prev.profile, name, avatar } }));
   };
   
   const setDayName = (date: string, name: string) => {
-    setGameState(prev => {
+    commit(prev => {
       const newDayNames = { ...prev.dayNames };
       if (name.trim()) {
         newDayNames[date] = name;
@@ -230,24 +275,21 @@ export function useGameState() {
         delete newDayNames[date];
       }
       return { ...prev, dayNames: newDayNames };
-    });
-    
-    if (name.trim()) {
-      addLog(`Дню ${date} присвоено имя: ${name.trim()}`, 'info');
-    } else {
-      addLog(`Имя для дня ${date} удалено.`, 'info');
-    }
+    }, { text: `Дню ${date} присвоено имя: ${name.trim()}`, type: 'info' });
   };
 
   return {
     gameState,
     logs,
+    systemAnalysis,
     completeTask,
     addTask,
     deleteTask,
     resetDay,
     updateProfile,
     recordVictory,
-    setDayName
+    setDayName,
+    undo,
+    hasHistory: history.length > 0,
   };
 }

@@ -1,24 +1,19 @@
 
 import React, { useState, useRef } from 'react';
-import { Profile, StatKey, VictoryLog } from '../types';
+import { motion } from 'framer-motion';
+import { Profile, StatKey } from '../types';
 import { STAT_CONFIG } from '../constants';
-import { Edit2, Check, X, Upload, Activity, ScanLine, ChevronRight, User } from 'lucide-react';
-import { StatHistoryModal } from './StatHistoryModal';
-import { StatsRadar } from './StatsRadar';
+import { Edit2, Check, X, Upload, User, Fingerprint, ShieldCheck, Activity } from 'lucide-react';
 
 interface ProfileCardProps {
   profile: Profile;
   onNameChange: (name: string, avatar: string) => void;
-  victoryHistory: VictoryLog[];
 }
 
-export function ProfileCard({ profile, onNameChange, victoryHistory }: ProfileCardProps) {
+export function ProfileCard({ profile, onNameChange }: ProfileCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
   const [tempAvatar, setTempAvatar] = useState(profile.avatar);
-  
-  const [isStatsGridOpen, setIsStatsGridOpen] = useState(false);
-  const [selectedStat, setSelectedStat] = useState<StatKey | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -56,292 +51,184 @@ export function ProfileCard({ profile, onNameChange, victoryHistory }: ProfileCa
 
   const isImage = (str: string) => str && (str.startsWith('data:') || str.startsWith('http'));
 
-  const getRank = (value: number) => {
-    if (value >= 100) return { rank: 'S', color: 'text-amber-400', shadow: 'shadow-amber-500/50' };
-    if (value >= 75) return { rank: 'A', color: 'text-red-500', shadow: 'shadow-red-500/50' };
-    if (value >= 50) return { rank: 'B', color: 'text-blue-400', shadow: 'shadow-blue-500/50' };
-    if (value >= 30) return { rank: 'C', color: 'text-green-400', shadow: 'shadow-green-500/50' };
-    if (value >= 15) return { rank: 'D', color: 'text-slate-300', shadow: 'shadow-slate-500/50' };
-    return { rank: 'E', color: 'text-slate-500', shadow: 'shadow-slate-500/20' };
-  };
-
   const currentAvatar = isEditing ? tempAvatar : profile.avatar;
 
+  // Render a minimal segmented progress bar
+  const SegmentedBar = ({ value }: { value: number }) => {
+    const segments = 12;
+    const filled = Math.floor((value / 100) * segments);
+    return (
+      <div className="flex gap-[2px]">
+        {[...Array(segments)].map((_, i) => (
+          <div 
+            key={i} 
+            className={`w-1 h-2.5 rounded-[0.5px] transition-colors duration-700 ${
+              i < filled ? 'bg-blue-500 shadow-[0_0_3px_rgba(59,130,246,0.6)]' : 'bg-blue-900/20'
+            }`}
+          />
+        ))}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-6 animate-fade-in font-mono">
-      <div className="bg-[#0a0f1c] border-2 border-[#1e293b] shadow-[0_0_30px_rgba(59,130,246,0.15)] rounded-sm overflow-hidden relative">
-        <div className="absolute top-0 left-0 w-4 h-4 border-l-2 border-t-2 border-blue-500"></div>
-        <div className="absolute top-0 right-0 w-4 h-4 border-r-2 border-t-2 border-blue-500"></div>
-        <div className="absolute bottom-0 left-0 w-4 h-4 border-l-2 border-b-2 border-blue-500"></div>
-        <div className="absolute bottom-0 right-0 w-4 h-4 border-r-2 border-b-2 border-blue-500"></div>
+    <div className="bg-[#0a0f1c] border border-blue-900/40 shadow-[0_0_40px_rgba(0,0,0,0.6)] rounded-sm overflow-hidden relative font-mono">
+      {/* Decorative HUD Elements */}
+      <div className="absolute top-0 left-0 w-6 h-6 border-l border-t border-blue-500/40"></div>
+      <div className="absolute top-0 right-0 w-6 h-6 border-r border-t border-blue-500/40"></div>
+      <div className="absolute bottom-0 left-0 w-6 h-6 border-l border-b border-blue-500/40"></div>
+      <div className="absolute bottom-0 right-0 w-6 h-6 border-r border-b border-blue-500/40"></div>
 
-        <div className="bg-[#111827] border-b border-[#1e293b] p-2 text-center">
-            <h2 className="text-blue-500 font-bold tracking-[0.3em] text-lg drop-shadow-[0_0_5px_rgba(59,130,246,0.8)]">
-                ДОСЬЕ ОПЕРАТИВНИКА
-            </h2>
+      {/* Top Header Bar */}
+      <div className="bg-blue-950/30 border-b border-blue-900/40 px-4 py-1.5 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+            <Activity size={12} className="text-blue-500 animate-pulse" />
+            <span className="text-[9px] text-blue-500 font-bold tracking-[0.3em] uppercase">Tactical_Unit_Profile</span>
         </div>
-
-        <div className="p-6">
-            <div className="flex flex-col md:flex-row gap-8 items-start">
-                
-                <div className="flex flex-col items-center gap-4 w-full md:w-auto">
-                    <div 
-                        className={`relative w-32 h-32 md:w-40 md:h-40 bg-slate-900 border-2 border-blue-900/50 flex items-center justify-center overflow-hidden shadow-inner ${isEditing ? 'cursor-pointer hover:border-blue-400 transition-colors group' : ''}`}
-                        onClick={isEditing ? triggerFileInput : undefined}
-                    >
-                        {isImage(currentAvatar) ? (
-                            <img 
-                                src={currentAvatar} 
-                                alt="Аватар" 
-                                className="w-full h-full object-cover"
-                            />
-                        ) : (
-                            <User className="w-20 h-20 text-slate-700" />
-                        )}
-
-                        {isEditing && (
-                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Upload className="text-blue-400" />
-                                <input 
-                                    ref={fileInputRef}
-                                    type="file" 
-                                    accept="image/*" 
-                                    className="hidden" 
-                                    onChange={handleFileChange}
-                                />
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex-1 w-full space-y-4">
-                    <div className="border-b border-dashed border-slate-800 pb-2">
-                        <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Позывной</div>
-                        <div className="flex items-center gap-2">
-                            {isEditing ? (
-                                <div className="flex items-center gap-2 w-full">
-                                    <input 
-                                        value={tempName}
-                                        onChange={(e) => setTempName(e.target.value)}
-                                        className="bg-slate-900/50 border border-blue-900 text-blue-100 px-2 py-1 w-full focus:outline-none focus:border-blue-500 font-bold"
-                                        autoFocus
-                                    />
-                                    <button onClick={saveProfile} className="text-green-500 hover:text-green-400"><Check size={20}/></button>
-                                    <button onClick={cancelEditing} className="text-red-500 hover:text-red-400"><X size={20}/></button>
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-between w-full">
-                                    <span className="text-2xl text-white font-bold tracking-wide">{profile.name}</span>
-                                    <button onClick={startEditing} className="text-slate-600 hover:text-blue-400 transition-colors">
-                                        <Edit2 size={16} />
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 border-b border-dashed border-slate-800 pb-4">
-                        <div>
-                            <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Класс</div>
-                            <div className="text-slate-300">Пробужденный</div> 
-                        </div>
-                        <div>
-                            <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Титул</div>
-                            <div className="text-slate-300">Первопроходец</div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <div className="text-slate-500 text-xs uppercase tracking-widest mb-1">Уровень</div>
-                        <div className="flex items-end gap-2">
-                            <span className="text-4xl text-blue-500 font-bold leading-none drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]">
-                                {profile.level}
-                            </span>
-                            <div className="flex-1 pb-1">
-                                <div className="h-2 bg-slate-900 border border-slate-800 relative">
-                                    <div 
-                                        className="absolute top-0 left-0 h-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.8)]"
-                                        style={{ width: `${Math.min((profile.currentXp / profile.xpToNextLevel) * 100, 100)}%` }}
-                                    ></div>
-                                </div>
-                                <div className="text-[10px] text-right text-slate-500 mt-1">
-                                    {Math.floor(profile.currentXp)} / {profile.xpToNextLevel} XP
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div className="pt-4 border-t border-dashed border-slate-800">
-                        <div className="text-slate-500 text-xs uppercase tracking-widest mb-2">Ключевые параметры</div>
-                        <div className="flex flex-col gap-1">
-                            {Object.entries(profile.stats).map(([key, value]) => {
-                                const k = key as StatKey;
-                                const config = STAT_CONFIG[k];
-                                const rankInfo = getRank(value);
-                                return (
-                                    <div key={k} className="flex items-center justify-between p-1">
-                                        <div className="flex items-center gap-3">
-                                            <config.icon size={14} style={{ color: config.color }} />
-                                            <span className="text-xs text-slate-400 uppercase font-semibold tracking-wider w-24">{config.label}</span>
-                                        </div>
-                                        <div className="flex items-center gap-3 flex-1">
-                                            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                                <div 
-                                                    className="h-full rounded-full" 
-                                                    style={{ width: `${Math.min(value, 100)}%`, backgroundColor: config.color }}
-                                                ></div>
-                                            </div>
-                                            <span className="w-8 text-right font-mono text-sm font-bold text-white">{value.toFixed(0)}</span>
-                                            <div className={`w-7 h-7 flex items-center justify-center border border-slate-800 bg-slate-900 rounded-sm font-mono font-bold text-sm ${rankInfo.color}`}>
-                                                {rankInfo.rank}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                </div>
-            </div>
+        <div className="flex gap-4">
+            <span className="text-[8px] text-blue-900 font-bold">NODE_ID: 0x77-A</span>
+            <span className="text-[8px] text-blue-900 font-bold">SYNC_V2.5</span>
         </div>
       </div>
 
-      <div 
-         className="w-full bg-[#0a0f1c] border border-slate-800 p-4 rounded-sm relative overflow-hidden group h-[400px] flex flex-col cursor-pointer hover:border-blue-500 transition-all hover:shadow-[0_0_20px_rgba(59,130,246,0.15)]"
-         onClick={() => setIsStatsGridOpen(true)}
-      >
-        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-blue-500/50 to-transparent"></div>
-        <div className="absolute bottom-0 right-0 w-0 h-0 border-b-[20px] border-r-[20px] border-b-blue-500/20 border-r-transparent group-hover:border-b-blue-500 transition-colors"></div>
+      <div className="p-5 flex flex-col gap-6">
         
-        <div className="flex justify-between items-center mb-2 z-10 shrink-0">
-            <span className="text-xs text-blue-500 uppercase tracking-[0.2em] font-bold flex items-center gap-2">
-                <ScanLine size={16} className="animate-pulse" />
-                Анализ баланса
-            </span>
-            <div className="flex items-center gap-1 text-slate-500 group-hover:text-blue-400 transition-colors text-[10px] uppercase tracking-widest">
-                <span>Открыть параметры</span>
-                <ChevronRight size={14} />
-            </div>
-        </div>
-        
-        <div className="flex-1 relative w-full min-h-0 pointer-events-none">
-             <div className="absolute inset-0 bg-[linear-gradient(rgba(30,41,59,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(30,41,59,0.2)_1px,transparent_1px)] bg-[size:20px_20px]"></div>
-             <div className="absolute inset-0 flex items-center justify-center">
-                 <StatsRadar stats={profile.stats} />
-             </div>
-        </div>
-        
-        <div className="mt-2 pt-2 border-t border-slate-800 text-center z-10 shrink-0">
-             <div className="text-[10px] text-slate-500 uppercase flex justify-between px-2">
-                 <span>Синхронизация: 98%</span>
-                 <span className="animate-pulse text-blue-500"> НАЖМИТЕ ДЛЯ ДЕТАЛЕЙ </span>
-                 <span>Класс: Сбалансированный</span>
-             </div>
-        </div>
-      </div>
-      
-      <div className="text-center text-[10px] text-slate-600 mt-8 tracking-[0.5em] opacity-50">
-          СИСТЕМА ОНЛАЙН
-      </div>
-
-      {isStatsGridOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-             <div 
-                className="absolute inset-0 bg-slate-950/95 backdrop-blur-sm transition-opacity" 
-                onClick={() => setIsStatsGridOpen(false)}
-             />
+        {/* UPPER TIER: BIOMETRICS & ID (Avatar Left, Stats Right) */}
+        <div className="flex flex-row items-start gap-8">
+          
+          {/* Visual ID Module (NOW LEFT) */}
+          <div className="relative shrink-0">
+             {/* Scanning effect overlay */}
+             <div className="absolute -top-1 -left-1 w-3 h-3 border-l border-t border-blue-400 z-20"></div>
+             <div className="absolute -bottom-1 -right-1 w-3 h-3 border-r border-b border-blue-400 z-20"></div>
              
-             <div className="relative w-full max-w-xl animate-scale-up">
-                <div className="absolute -inset-1 bg-blue-600/20 blur-md rounded-sm"></div>
-                
-                <div className="relative bg-[#0b101b] border-2 border-blue-600 shadow-[0_0_50px_rgba(37,99,235,0.2)] rounded-sm overflow-hidden flex flex-col max-h-[80vh]">
-                    
-                    <div className="bg-slate-900 border-b border-blue-800 p-3 flex justify-between items-center shadow-md">
-                        <div className="flex items-center gap-2">
-                            <Activity className="text-blue-500" size={18} />
-                            <h3 className="text-lg font-bold text-white font-mono tracking-[0.2em] drop-shadow-[0_0_5px_rgba(59,130,246,0.8)]">
-                                ПАРАМЕТРЫ
-                            </h3>
-                        </div>
-                        <button onClick={() => setIsStatsGridOpen(false)} className="text-slate-500 hover:text-white transition-colors">
-                            <X size={20} />
-                        </button>
+             <div 
+                className={`relative w-28 h-28 md:w-32 md:h-32 bg-slate-900 border border-blue-900 flex items-center justify-center overflow-hidden shadow-inner ${isEditing ? 'cursor-pointer hover:border-blue-500' : ''}`}
+                onClick={isEditing ? triggerFileInput : undefined}
+             >
+                {/* Horizontal Scanline */}
+                <motion.div 
+                    className="absolute left-0 right-0 h-[1px] bg-blue-400/40 z-10 pointer-events-none"
+                    animate={{ top: ['0%', '100%', '0%'] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                />
+
+                {isImage(currentAvatar) ? (
+                    <img src={currentAvatar} alt="ID" className="w-full h-full object-cover filter brightness-75 contrast-125 saturate-50" />
+                ) : (
+                    <User className="w-12 h-12 text-blue-900/40" />
+                )}
+
+                {isEditing && (
+                    <div className="absolute inset-0 bg-blue-600/60 backdrop-blur-[2px] flex items-center justify-center z-20">
+                        <Upload className="text-white" size={20} />
+                        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                     </div>
+                )}
+             </div>
+             <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[7px] font-black px-1 leading-tight tracking-widest uppercase">
+                Visual_Link
+             </div>
+          </div>
 
-                    <div className="p-1 overflow-y-auto custom-scrollbar bg-[linear-gradient(rgba(30,41,59,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(30,41,59,0.1)_1px,transparent_1px)] bg-[size:20px_20px]">
-                        <div className="flex flex-col gap-1 p-2">
-                            <div className="flex justify-between items-center p-3 mb-2 bg-blue-900/10 border border-blue-900/30 rounded-sm">
-                                <span className="text-xs text-blue-400 font-mono tracking-widest uppercase">Очки улучшения</span>
-                                <span className="text-xl font-mono text-slate-500 font-bold">0</span>
-                            </div>
+          {/* Stats Module (HUD Style) (NOW RIGHT) */}
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 py-1">
+            {(Object.keys(STAT_CONFIG) as StatKey[]).map((key) => {
+              const config = STAT_CONFIG[key];
+              const value = profile.stats[key] || 0;
+              return (
+                <div key={key} className="flex flex-col gap-1 border-l border-blue-900/30 pl-4 py-1 hover:bg-blue-500/5 transition-colors">
+                  <div className="flex justify-between items-center w-full max-w-[140px]">
+                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter">{config.label}</span>
+                    <span className="text-[9px] font-black text-blue-400 tabular-nums">{value.toFixed(1)}</span>
+                  </div>
+                  <SegmentedBar value={value} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
-                            {Object.entries(profile.stats).map(([key, value]) => {
-                                const k = key as StatKey;
-                                const config = STAT_CONFIG[k];
-                                const rankInfo = getRank(value);
-                                
-                                return (
-                                    <button 
-                                        key={key} 
-                                        onClick={() => setSelectedStat(k)}
-                                        className="group relative flex items-center justify-between p-3 border border-slate-800 bg-[#0f1525] hover:bg-blue-900/10 hover:border-blue-500/50 transition-all duration-200"
-                                    >
-                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-hover:bg-blue-500 transition-colors"></div>
+        {/* LOWER TIER: PERSONAL DATA & PROGRESS */}
+        <div className="space-y-4 pt-4 border-t border-blue-900/20">
+          
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+             <div className="flex-1 min-w-0">
+                <div className="text-[8px] text-blue-500/60 uppercase tracking-[0.3em] mb-1 font-bold">Subject_Callsign</div>
+                {isEditing ? (
+                  <div className="flex items-center gap-2">
+                    <input 
+                      value={tempName}
+                      onChange={(e) => setTempName(e.target.value)}
+                      className="bg-blue-900/10 border border-blue-500/50 text-blue-100 px-3 py-1 w-full focus:outline-none font-bold text-xl uppercase tracking-widest"
+                      autoFocus
+                    />
+                    <button onClick={saveProfile} className="text-green-500 hover:text-green-400 transition-colors"><Check size={20}/></button>
+                    <button onClick={cancelEditing} className="text-red-500 hover:text-red-400 transition-colors"><X size={20}/></button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between group/name max-w-md">
+                    <h1 className="text-3xl text-white font-black tracking-tighter uppercase drop-shadow-[0_0_8px_rgba(255,255,255,0.1)] truncate">
+                      {profile.name}
+                    </h1>
+                    <button onClick={startEditing} className="text-blue-900 hover:text-blue-500 transition-colors ml-4">
+                      <Edit2 size={16} />
+                    </button>
+                  </div>
+                )}
+             </div>
 
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 flex items-center justify-center bg-slate-900 border border-slate-700 rounded-sm text-slate-400 group-hover:text-blue-400 group-hover:border-blue-500/30 transition-colors">
-                                                <config.icon size={18} />
-                                            </div>
-
-                                            <div className="text-left">
-                                                <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold group-hover:text-blue-300 transition-colors">
-                                                    {config.label}
-                                                </div>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                     <div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                                         <div 
-                                                            className="h-full bg-slate-500 group-hover:bg-blue-500 transition-colors"
-                                                            style={{ width: `${Math.min(value, 100)}%` }}
-                                                         ></div>
-                                                     </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-4">
-                                            <div className="text-right">
-                                                <div className="text-2xl text-white font-bold font-mono leading-none group-hover:text-shadow-glow">
-                                                    {value.toFixed(0)}
-                                                </div>
-                                            </div>
-                                            
-                                            <div className={`w-10 h-10 flex items-center justify-center border border-slate-800 bg-slate-900 rounded-sm font-mono font-bold text-lg ${rankInfo.color} ${rankInfo.shadow} drop-shadow-md`}>
-                                                {rankInfo.rank}
-                                            </div>
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                    
-                    <div className="bg-slate-900 border-t border-slate-800 p-2 text-center">
-                        <span className="text-[9px] text-slate-600 font-mono tracking-[0.3em] uppercase">
-                            Выберите параметр для просмотра истории
-                        </span>
+             <div className="flex gap-6 shrink-0">
+                <div className="text-right">
+                    <div className="text-[8px] text-slate-600 uppercase font-bold tracking-widest">Operator_Class</div>
+                    <div className="text-xs text-slate-300 font-bold flex items-center justify-end gap-1">
+                        <ShieldCheck size={12} className="text-blue-500" /> Awakened
                     </div>
                 </div>
+                <div className="text-right">
+                    <div className="text-[8px] text-slate-600 uppercase font-bold tracking-widest">Rank_Status</div>
+                    <div className="text-xs text-blue-500 font-bold uppercase italic tracking-tighter">Pioneer_Beta</div>
+                </div>
              </div>
-        </div>
-      )}
+          </div>
 
-      <StatHistoryModal 
-        isOpen={!!selectedStat}
-        onClose={() => setSelectedStat(null)}
-        stat={selectedStat}
-        history={victoryHistory}
-      />
+          {/* Level & XP Module */}
+          <div className="bg-blue-950/10 border border-blue-900/20 p-3 rounded-sm relative group/xp">
+             <div className="flex justify-between items-end mb-2">
+                <div className="flex items-center gap-2">
+                   <div className="text-2xl font-black text-blue-500 italic leading-none">LV.{profile.level}</div>
+                   <div className="h-4 w-[1px] bg-blue-900"></div>
+                   <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Core_Integration</div>
+                </div>
+                <div className="text-[10px] font-bold text-slate-400 tabular-nums">
+                   {Math.floor(profile.currentXp)} <span className="text-slate-600">/</span> {profile.xpToNextLevel} <span className="text-blue-900 ml-1">XP</span>
+                </div>
+             </div>
+             
+             <div className="h-1.5 bg-slate-900 border border-blue-900/20 relative p-[1px] rounded-full overflow-hidden">
+                <motion.div 
+                    className="h-full bg-gradient-to-r from-blue-700 to-blue-400 shadow-[0_0_10px_rgba(37,99,235,0.4)] rounded-full"
+                    initial={{ width: '0%' }}
+                    animate={{ width: `${Math.min((profile.currentXp / profile.xpToNextLevel) * 100, 100)}%` }}
+                    transition={{ duration: 1.5, ease: "circOut" }}
+                />
+             </div>
+
+             {/* Animated status indicators */}
+             <div className="absolute -right-1 top-0 bottom-0 w-4 flex flex-col justify-center gap-1">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="w-1 h-1 bg-blue-500/20 rounded-full animate-pulse" style={{ animationDelay: `${i * 0.4}s` }}></div>
+                ))}
+             </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Decorative Serial Text */}
+      <div className="absolute bottom-1 right-3 text-[7px] text-blue-900 font-bold opacity-30 select-none pointer-events-none">
+         OS.X-7_SYSTEM_LOG_CORE_DUMP_0010101
+      </div>
     </div>
   );
 }

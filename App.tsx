@@ -1,25 +1,27 @@
 
-
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sun, 
   Inbox, 
   Repeat,
   User,
   Terminal,
-  Activity
+  Activity,
+  Award
 } from 'lucide-react';
 
 // Views
 import { ProfileView } from './components/views/ProfileView';
 import { DashboardView } from './components/views/DashboardView';
-import { QuestsView } from './components/views/QuestsView'; // Handles Inbox, Today, Habits
+import { QuestsView } from './components/views/QuestsView'; 
 import { PlanningView } from './components/views/PlanningView';
 
 // Components
 import { SystemLog } from './components/SystemLog';
 import { Sidebar } from './components/Sidebar';
 import { VictoryModal } from './components/VictoryModal';
+import { AIAssistantModal } from './components/AIAssistantModal';
 
 // Hooks & Types
 import { useGameState } from './hooks/useGameState';
@@ -36,9 +38,54 @@ function LoadingScreen() {
     );
 }
 
+function LevelUpOverlay({ level, onClose }: { level: number, onClose: () => void }) {
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.5 } }}
+            className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center"
+            onClick={onClose}
+        >
+            <motion.div
+                initial={{ scale: 0.5, y: 50, opacity: 0 }}
+                animate={{ scale: 1, y: 0, opacity: 1, transition: { type: 'spring', stiffness: 200, damping: 20, delay: 0.2 } }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                className="text-center font-mono p-8"
+            >
+                <motion.div
+                    initial={{ y: -20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1, transition: { delay: 0.5 } }}
+                    className="text-2xl text-slate-400 tracking-[0.5em] uppercase"
+                >
+                    Уровень повышен
+                </motion.div>
+                <motion.div
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 150, damping: 15, delay: 0.8 } }}
+                    className="text-8xl md:text-9xl font-bold my-4 text-amber-400 text-shadow-gold"
+                    style={{ WebkitTextStroke: '2px #1e293b' }}
+                >
+                    {level}
+                </motion.div>
+                <motion.div
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1, transition: { delay: 1.1 } }}
+                    className="flex items-center justify-center gap-2 text-blue-300"
+                >
+                    <Award /> Новые возможности разблокированы
+                </motion.div>
+            </motion.div>
+        </motion.div>
+    );
+}
+
 export default function App() {
+  const [uiEffect, setUiEffect] = useState<'none' | 'levelUp'>('none');
+  
   const { 
     gameState, 
+    systemAnalysis,
     completeTask, 
     addTask,
     recordVictory, 
@@ -47,15 +94,34 @@ export default function App() {
     logs,
     updateProfile,
     setDayName,
-  } = useGameState();
+    undo,
+    hasHistory
+  } = useGameState(() => setUiEffect('levelUp'));
   
   const [activeTab, setActiveTab] = useState<TabView>(TabView.TODAY);
   const [isVictoryModalOpen, setIsVictoryModalOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 1200);
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        // Alt + C to open assistant
+        if (e.altKey && e.key.toLowerCase() === 'c') {
+            setIsAssistantOpen(prev => !prev);
+        }
+        // / to open if no input is focused
+        if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+            setIsAssistantOpen(true);
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   useEffect(() => {
@@ -65,7 +131,6 @@ export default function App() {
     return () => window.removeEventListener('focus', handleFocus);
   }, [resetDay]);
 
-  // Calculate Counts for Sidebar
   const todayStr = new Date().toISOString().slice(0, 10);
   const counts = {
       inbox: gameState.tasks.filter(t => !t.isHabit && !t.dueDate && !gameState.completedToday[t.id]).length,
@@ -114,6 +179,7 @@ export default function App() {
             return (
                 <DashboardView 
                     gameState={gameState}
+                    systemAnalysis={systemAnalysis}
                     onOpenVictoryModal={() => setIsVictoryModalOpen(true)}
                     onRecordVictory={recordVictory}
                 />
@@ -130,17 +196,35 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#0b0f1a] text-slate-200 font-sans overflow-hidden">
       
+      <AnimatePresence>
+        {uiEffect === 'levelUp' && (
+            <LevelUpOverlay level={gameState.profile.level} onClose={() => setUiEffect('none')} />
+        )}
+      </AnimatePresence>
+
       {/* Desktop Sidebar */}
       <div className="hidden md:block h-full shadow-xl z-20">
-          <Sidebar activeTab={activeTab} onTabChange={setActiveTab} tasksCount={counts} />
+          <Sidebar 
+            activeTab={activeTab} 
+            onTabChange={setActiveTab} 
+            tasksCount={counts} 
+            onUndo={undo} 
+            canUndo={hasHistory}
+            onOpenAssistant={() => setIsAssistantOpen(true)}
+          />
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 relative h-full">
           
-          {/* Mobile Header (Minimal) */}
-          <div className="md:hidden flex items-center justify-center p-3 border-b border-slate-800 bg-[#0a0f1c]/95 backdrop-blur-md z-10 sticky top-0">
-              <span className="font-mono font-bold text-blue-500 tracking-[0.2em] text-sm">SYSTEM.OS</span>
+          <div className="md:hidden flex items-center justify-between p-3 border-b border-slate-800 bg-[#0a0f1c]/95 backdrop-blur-md z-10 sticky top-0 px-4">
+              <span className="font-mono font-bold text-blue-500 tracking-[0.2em] text-xs">SYSTEM.OS</span>
+              <button 
+                onClick={() => setIsAssistantOpen(true)}
+                className="text-blue-500 animate-pulse"
+              >
+                <Terminal size={18} />
+              </button>
           </div>
 
           <main className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth pb-24 md:pb-8">
@@ -153,7 +237,6 @@ export default function App() {
           <div className="md:hidden absolute bottom-0 left-0 right-0 bg-[#0a0f1c]/95 backdrop-blur-md border-t border-slate-800 z-50 pb-safe">
             <div className="flex items-center justify-around h-16 px-2">
                 
-                {/* 1. Planning */}
                 <MobileNavButton 
                   isActive={activeTab === TabView.TODAY} 
                   onClick={() => setActiveTab(TabView.TODAY)} 
@@ -161,7 +244,6 @@ export default function App() {
                   label="План" 
                 />
 
-                {/* 2. Habits */}
                 <MobileNavButton 
                   isActive={activeTab === TabView.HABITS} 
                   onClick={() => setActiveTab(TabView.HABITS)} 
@@ -169,7 +251,6 @@ export default function App() {
                   label="Протоколы" 
                 />
 
-                {/* 3. Inbox (Center Highlight) */}
                 <div className="relative -top-5">
                    <button 
                       onClick={() => setActiveTab(TabView.INBOX)}
@@ -185,7 +266,6 @@ export default function App() {
                    </button>
                 </div>
 
-                {/* 4. Dashboard */}
                 <MobileNavButton 
                   isActive={activeTab === TabView.DASHBOARD} 
                   onClick={() => setActiveTab(TabView.DASHBOARD)} 
@@ -193,7 +273,6 @@ export default function App() {
                   label="Сводка" 
                 />
 
-                {/* 5. Profile */}
                 <MobileNavButton 
                   isActive={activeTab === TabView.PROFILE} 
                   onClick={() => setActiveTab(TabView.PROFILE)} 
@@ -213,11 +292,16 @@ export default function App() {
           onRecord={recordVictory}
         />
       )}
+
+      <AIAssistantModal 
+        isOpen={isAssistantOpen}
+        onClose={() => setIsAssistantOpen(false)}
+        onAddTask={addTask}
+      />
     </div>
   );
 }
 
-// Helper for Mobile Nav Buttons
 function MobileNavButton({ isActive, onClick, icon: Icon, label }: any) {
     return (
         <button 

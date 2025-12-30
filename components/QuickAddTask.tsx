@@ -1,8 +1,7 @@
 
-
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { StatKey, Priority } from '../types';
-import { CornerDownLeft, Plus, Calendar, Flag, Zap } from 'lucide-react';
+import { CornerDownLeft, Plus, Calendar, Flag } from 'lucide-react';
 
 interface QuickAddTaskProps {
   onAdd: (title: string, stat: StatKey, xp: number, priority: Priority, dueDate: string | null) => void;
@@ -14,8 +13,8 @@ export function QuickAddTask({ onAdd, defaultDate = null }: QuickAddTaskProps) {
   const [priority, setPriority] = useState<Priority>(Priority.E_RANK);
   const [dueDate, setDueDate] = useState<string | null>(defaultDate);
   const [isFocused, setIsFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Toggle helpers
   const togglePriority = () => {
     const priorities = [Priority.E_RANK, Priority.B_RANK, Priority.A_RANK, Priority.S_RANK];
     const currentIndex = priorities.indexOf(priority);
@@ -27,13 +26,16 @@ export function QuickAddTask({ onAdd, defaultDate = null }: QuickAddTaskProps) {
     else setDueDate(new Date().toISOString().slice(0, 10)); // Today
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (title.trim()) {
       onAdd(title, StatKey.DISCIPLINE, 20, priority, dueDate);
       setTitle('');
       setPriority(Priority.E_RANK);
-      setDueDate(defaultDate); // Reset to view's default
+      setDueDate(defaultDate);
+      inputRef.current?.blur();
+    } else {
+      inputRef.current?.focus();
     }
   };
 
@@ -57,14 +59,19 @@ export function QuickAddTask({ onAdd, defaultDate = null }: QuickAddTaskProps) {
       `}
     >
       <div className="flex items-center gap-3">
-        <div className={`
-            flex items-center justify-center w-6 h-6 rounded-sm transition-colors
-            ${isFocused ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'}
-        `}>
-            <Plus size={16} />
-        </div>
+        <button 
+            type="button"
+            onClick={handleSubmit}
+            className={`
+                flex items-center justify-center w-6 h-6 rounded-sm transition-all duration-300 active:scale-90
+                ${isFocused || title.trim() ? 'bg-blue-600 text-white shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-slate-800 text-slate-500 hover:bg-slate-700 hover:text-slate-300'}
+            `}
+        >
+            <Plus size={16} strokeWidth={3} />
+        </button>
 
         <input
+            ref={inputRef}
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -75,7 +82,6 @@ export function QuickAddTask({ onAdd, defaultDate = null }: QuickAddTaskProps) {
         />
       </div>
 
-      {/* Action Bar (Visible when focused or has content) */}
       {(isFocused || title) && (
         <div className="flex justify-between items-center pl-9 pt-1 animate-fade-in">
             <div className="flex gap-2">

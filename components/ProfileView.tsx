@@ -28,7 +28,6 @@ export function ProfileView({ profile, onNameChange, victoryHistory }: ProfileVi
         
         {/* Main Column */}
         <div className="lg:col-span-2">
-          {/* FIX: Removed victoryHistory prop which does not exist on ProfileCardProps */}
           <ProfileCard 
             profile={profile} 
             onNameChange={onNameChange}
